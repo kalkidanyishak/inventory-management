@@ -1,0 +1,5 @@
+server ->
+routes (router) ->
+controllers (some fns -> [userService, ...validation]) 
+    [0] -> services,
+    [1] -> types (zod)
