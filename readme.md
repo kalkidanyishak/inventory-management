@@ -1,2 +1,2 @@
 -[ ] fix user return (it returns everything)
--[ ] 
+-[ ] fix internal server error (better error handling)

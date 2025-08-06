@@ -5,7 +5,6 @@ import {
   ChangePasswordInput,
   ChangeFullNameInput,
   LoginInput,
-  RefreshTokenInput,
   SignUpInput,
 } from "@/types/user.types";
 ;
@@ -17,8 +16,10 @@ import {
 import crypto from "crypto"; // <-- Import crypto
 import { sendEmail } from "@/utils/sendEmail"; // <-- Import email utility
 import { ForgotPasswordInput, ResetPasswordInput } from "@/types/user.types";
+import { AppError } from "@/utils/AppError";
+import { pickData } from "@/utils/pick";
+import { prisma } from "@/prisma-client";
 
-const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;
 
 const {
@@ -59,7 +60,7 @@ const generateTokens = (userId: string) => {
 
 //   const { accessToken, refreshToken } = generateTokens(newUser.id);
 
-//   const { password, ...userWithoutPassword } = newUser;
+//   const pickedUser = pickData(["id", "email", "fullName"], newUser);
 
 //   return { user: userWithoutPassword, accessToken, refreshToken };
 // };
@@ -80,9 +81,9 @@ export const login = async (credentials: LoginInput) => {
 
   const { accessToken, refreshToken } = generateTokens(user.id);
 
-  const { password, ...userWithoutPassword } = user;
+  const pickedUser = pickData(["id", "email", "fullName"], user);
 
-  return { user: userWithoutPassword, accessToken, refreshToken };
+  return { user: pickedUser, accessToken, refreshToken };
 };
 
 export const refreshAccessToken = (token: string) => {
@@ -300,7 +301,7 @@ export const signup = async (userData: SignUpInput) => {
     where: { email: userData.email },
   });
 
-  if (existingUser) throw new Error("User with this email already exists");
+  if (existingUser) throw new AppError("User with this email already exists", 409);
 
   const hashedPassword = await bcrypt.hash(userData.password, SALT_ROUNDS);
   const newUser = await prisma.user.create({
@@ -316,9 +317,9 @@ export const signup = async (userData: SignUpInput) => {
   }
 
   const { accessToken, refreshToken } = generateTokens(newUser.id);
-  const { password, ...userWithoutPassword } = newUser;
+  const pickedUser = pickData(["id", "email", "fullName"], newUser);
 
-  return { user: userWithoutPassword, accessToken, refreshToken };
+  return { user: pickedUser, accessToken, refreshToken };
 };
 
 // --- NEW verifyEmail function ---

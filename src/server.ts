@@ -1,12 +1,14 @@
 import express from 'express';
 import userRouter from '@/routes/user.routes';
 import { errorHandler } from '@/middleware/errorHandler.middleware';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 const PORT = 3000;
 
 // Middleware to parse JSON
 app.use(express.json());
+app.use(cookieParser());
 
 // Routes
 app.use('/api/auth', userRouter);

@@ -1,16 +1,24 @@
+import { ChangeFullNameInput, ChangePasswordInput, ForgotPasswordInput, ResetPasswordInput, VerifyEmailInput } from "@/types/user.types"; // Import the new type
 import { Request, Response, NextFunction } from "express";
 import * as userService from "@/services/user.service";
 import { go } from "@/utils/TryCatch";
+import { sendTokens, sendAccessToken, clearTokens } from "@/utils/authCookie.utils"; 
+
 
 export const signup = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const [error, newUser] = await go(userService.signup(req.body));
-  if (error) next(error);
+  const [error, result] = await go(userService.signup(req.body));
 
-  res.status(201).json({ message: "User created successfully", user: newUser });
+  if (error) return next(error);
+  
+  if (result) {
+    const { user, accessToken, refreshToken } = result;
+    sendTokens(res, accessToken, refreshToken);
+    return res.status(201).json(user);
+  }
 };
 
 export const login = async (
@@ -18,25 +26,31 @@ export const login = async (
   res: Response,
   next: NextFunction
 ) => {
-  const [error, user] = await go(userService.login(req.body));
-
-  if (!user) return res.status(401).json({ message: "user doesn't exist" });
+  const [error, result] = await go(userService.login(req.body));
 
   if (error) return next(error);
 
-  res.status(200).json({ message: "Login successful", user });
+  if (result) {
+    const { user, accessToken, refreshToken } = result;
+    sendTokens(res, accessToken, refreshToken);
+    return res.status(200).json(user);
+  }
 };
 
-import { ChangeFullNameInput, ChangePasswordInput, ForgotPasswordInput, RefreshTokenInput, ResetPasswordInput, VerifyEmailInput } from "@/types/user.types"; // Import the new type
-
-// ... existing signup and login controllers
+export const logout = (req: Request, res: Response) => {
+  clearTokens(res);
+  return res.status(200).json({ message: "Logged out successfully." });
+};
 
 export const refresh = async (
-  req: Request<{}, {}, RefreshTokenInput>,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const { refreshToken } = req.body;
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) {
+      return res.status(401).json({ message: "Unauthorized: No refresh token." });
+  }
 
   const [error, newTokens] = await go(
     userService.refreshAccessToken(refreshToken)
@@ -44,7 +58,10 @@ export const refresh = async (
 
   if (error) return next(error);
 
-  res.status(200).json(newTokens);
+  if (newTokens) {
+    sendAccessToken(res, newTokens.accessToken);
+    return res.status(200).json({ message: "Token refreshed successfully." });
+  }
 };
 
 
