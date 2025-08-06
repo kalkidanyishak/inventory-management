@@ -19,7 +19,14 @@ model User {
   email     String   @unique // Ensures no two users can have the same email.
   fullName  String
   password  String   // This will store the HASHED password.
+  refreshToken String?   @unique
+  passwordResetToken  String?
+  passwordResetExpires DateTime?
   createdAt DateTime @default(now()) // Auto-generated timestamp.
   updatedAt DateTime @updatedAt // Auto-updated timestamp.
+
+  isEmailVerified        Boolean  @default(false)
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
 }
 

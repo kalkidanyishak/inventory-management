@@ -13,5 +13,5 @@ export const errorHandler = (error: Error, req: Request, res: Response, next: Ne
     return res.status(error.statusCode).json({ message: error.message });
   }
 
-  return res.status(500).json({ message: 'Internal Server Error' });
+  return res.status(500).json({ message: 'make sure you send the right data like check for trailing commas...' });
 };

@@ -1,8 +1,6 @@
 import { z } from 'zod';
 
-// This is the correct way to define the schema.
-// Every property must start with a base type like z.string() or z.object().
-export const LoginSchema = z.object({
+const userAuthCredentials = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
 
   password: z
@@ -19,14 +17,73 @@ export const LoginSchema = z.object({
     ),
 });
 
-export const SignUpSchema = LoginSchema.extend({
-  fullName: z
-    .string({
-      required_error: 'Full name is required',
-    })
-    .min(3, 'Full name must be at least 3 characters long'),
+
+export const loginSchema = z.object({
+  body: userAuthCredentials,
 });
 
-// TypeScript types are inferred from the corrected schemas
-export type LogInType = z.infer<typeof LoginSchema>;
-export type SignUpType = z.infer<typeof SignUpSchema>;
+export const signUpSchema = z.object({
+  body: userAuthCredentials.extend({
+    fullName: z
+      .string({
+        required_error: 'Full name is required',
+      })
+      .min(3, 'Full name must be at least 3 characters long'),
+  }),
+});
+export const refreshTokenSchema = z.object({
+  body: z.object({
+    refreshToken: z.string({
+      required_error: "Refresh token is required",
+    }),
+  }),
+});
+
+export const changeFullNameSchema = z.object({
+  body: z.object({
+    fullName: z
+      .string({ required_error: "Full name is required" })
+      .min(3, "Full name must be at least 3 characters long"),
+  }),
+});
+
+export const changePasswordSchema = z.object({
+  body: z.object({
+    oldPassword: z.string({ required_error: "Old password is required" }),
+    newPassword: z
+      .string({ required_error: "New password is required" })
+      .min(6, "Password must be at least 6 characters long"),
+  }),
+});
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z
+      .string({ required_error: "Email is required" })
+      .email("Invalid email address"),
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    token: z.string({ required_error: "Token is required" }),
+    newPassword: z
+      .string({ required_error: "New password is required" })
+      .min(6, "Password must be at least 6 characters long"),
+  }),
+});
+
+export const verifyEmailSchema = z.object({
+  query: z.object({
+    token: z.string({ required_error: "Verification token is required" }),
+  }),
+});
+
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>["query"];
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>["body"];
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>["body"];
+export type ChangeFullNameInput = z.infer<typeof changeFullNameSchema>["body"];
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>["body"];
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>['body'];
+export type LoginInput = z.infer<typeof loginSchema>['body'];
+export type SignUpInput = z.infer<typeof signUpSchema>['body'];
