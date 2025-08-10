@@ -15,18 +15,298 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid()) // Using CUID for unique IDs. Auto-generated.
-  email     String   @unique // Ensures no two users can have the same email.
-  fullName  String
-  password  String   // This will store the HASHED password.
-  refreshToken String?   @unique
-  passwordResetToken  String?
+  id                   String    @id @default(cuid()) // Unique ID
+  name                 String
+  fullName             String
+  email                String    @unique
+  password             String // Hashed password
+  refreshToken         String?   @unique
+  passwordResetToken   String?
   passwordResetExpires DateTime?
-  createdAt DateTime @default(now()) // Auto-generated timestamp.
-  updatedAt DateTime @updatedAt // Auto-updated timestamp.
+  createdAt            DateTime  @default(now()) // Creation timestamp
+  updatedAt            DateTime  @updatedAt // Auto-updated timestamp
 
-  isEmailVerified        Boolean  @default(false)
-  emailVerificationToken String?
+  isEmailVerified          Boolean   @default(false)
+  emailVerificationToken   String?
   emailVerificationExpires DateTime?
+
+  // Role relation
+  role   Role   @relation(fields: [roleId], references: [id])
+  roleId String
+
+  // Relations
+  sales     Sale[]
+  auditLogs AuditLog[]
 }
 
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique // Admin, Stock Manager, Cashier
+  permissions Permission[]
+  users       User[]
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  action String // e.g., "create_product", "view_sales"
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([roleId, action]) // A role cannot have the same permission twice
+}
+
+// --------------------
+// INVENTORY CORE
+// --------------------
+// Represents the general product concept, e.g., "Nike T-Shirt"
+model Product {
+  id             String           @id @default(uuid())
+  name           String
+  category       Category         @relation(fields: [categoryId], references: [id])
+  categoryId     String
+  manufacturer   Manufacturer?    @relation(fields: [manufacturerId], references: [id])
+  manufacturerId String?
+  unitOfMeasure  UnitOfMeasure    @relation(fields: [unitId], references: [id])
+  unitId         String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  // A product can have many variants (e.g., different sizes, colors)
+  variants       ProductVariant[]
+}
+
+// Represents a specific, stockable version of a Product, e.g., "Nike T-Shirt, Red, Large"
+model ProductVariant {
+  id                 String              @id @default(uuid())
+  product            Product             @relation(fields: [productId], references: [id])
+  productId          String
+  sku                String              @unique
+  price              Decimal // Using Decimal for financial precision
+  reorderLevel       Int
+  attributes         Json? // e.g., { "color": "Red", "size": "Large" }
+  // Relations to inventory and transactions now live here
+  stockLevels        StockLevel[]
+  purchaseOrderItems PurchaseOrderItem[]
+  salesItems         SaleItem[]
+  stockMovements     StockMovement[]
+  returnItems        ReturnOrderItem[]
+  auditDetails       StockAuditDetail[]
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Manufacturer {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  contact  String?
+  phone    String?
+  email    String?
+  address  String?
+  products Product[]
+}
+
+model UnitOfMeasure {
+  id       String    @id @default(uuid())
+  name     String    @unique // e.g., "Kilogram", "Piece"
+  products Product[]
+}
+
+model StockLevel {
+  id               String         @id @default(uuid())
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  location         Location       @relation(fields: [locationId], references: [id])
+  locationId       String
+  quantity         Int            @default(0)
+
+  // A variant can only have one stock level record per location
+  @@unique([productVariantId, locationId])
+}
+
+model Location {
+  id             String          @id @default(uuid())
+  name           String          @unique
+  address        String?
+  stockLevels    StockLevel[]
+  sales          Sale[]
+  purchaseOrders PurchaseOrder[]
+  stockAudits    StockAudit[]
+  stockMovements StockMovement[]
+}
+
+// --------------------
+// SUPPLIERS & PURCHASING
+// --------------------
+model Supplier {
+  id             String          @id @default(uuid())
+  name           String
+  contactName    String?
+  phone          String?
+  email          String?
+  address        String?
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id         String              @id @default(uuid())
+  supplier   Supplier            @relation(fields: [supplierId], references: [id])
+  supplierId String
+  location   Location            @relation(fields: [locationId], references: [id])
+  locationId String
+  status     PurchaseOrderStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  receivedAt DateTime?
+  items      PurchaseOrderItem[]
+  returns    ReturnOrder[]
+}
+
+model PurchaseOrderItem {
+  id               String         @id @default(uuid())
+  purchaseOrder    PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId  String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantityOrdered  Int
+  quantityReceived Int            @default(0)
+  unitPrice        Decimal
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+// --------------------
+// POS SALES
+// --------------------
+model Sale {
+  id            String        @id @default(uuid())
+  cashier       User          @relation(fields: [cashierId], references: [id])
+  cashierId     String
+  location      Location      @relation(fields: [locationId], references: [id])
+  locationId    String
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  customerId    String?
+  subTotal      Decimal // Sum of item prices before overall discounts
+  totalDiscount Decimal       @default(0) // Discount on the entire sale
+  totalAmount   Decimal // The final amount paid (subTotal - totalDiscount)
+  paymentMethod PaymentMethod
+  saleDate      DateTime      @default(now())
+  items         SaleItem[]
+  returns       ReturnOrder[]
+}
+
+model SaleItem {
+  id               String         @id @default(uuid())
+  sale             Sale           @relation(fields: [saleId], references: [id])
+  saleId           String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantity         Int
+  unitPrice        Decimal
+  discount         Decimal        @default(0) // Item-specific discount
+}
+
+model Customer {
+  id    String  @id @default(uuid())
+  name  String
+  phone String?
+  email String?
+  sales Sale[]
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE
+}
+
+// --------------------
+// STOCK MOVEMENTS & RETURNS
+// --------------------
+model StockMovement {
+  id               String         @id @default(uuid())
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  location         Location       @relation(fields: [locationId], references: [id])
+  locationId       String
+  movementType     MovementType
+  quantity         Int // Can be negative for OUT movements
+  referenceId      String? // Could reference Sale, PurchaseOrder, ReturnOrder, etc.
+  movementDate     DateTime       @default(now())
+}
+
+enum MovementType {
+  SALE
+  PURCHASE_RECEIPT
+  CUSTOMER_RETURN
+  SUPPLIER_RETURN
+  DAMAGE
+  ADJUSTMENT
+  TRANSFER_OUT
+  TRANSFER_IN
+}
+
+// New Return structure to handle multiple items
+model ReturnOrder {
+  id              String            @id @default(uuid())
+  returnType      ReturnType
+  reason          String?
+  relatedSale     Sale?             @relation(fields: [saleId], references: [id])
+  saleId          String?
+  relatedPO       PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId String?
+  date            DateTime          @default(now())
+  items           ReturnOrderItem[]
+}
+
+model ReturnOrderItem {
+  id               String         @id @default(uuid())
+  returnOrder      ReturnOrder    @relation(fields: [returnOrderId], references: [id])
+  returnOrderId    String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  quantity         Int
+}
+
+enum ReturnType {
+  CUSTOMER
+  SUPPLIER
+}
+
+// --------------------
+// AUDITS & LOGGING
+// --------------------
+model StockAudit {
+  id         String             @id @default(uuid())
+  location   Location           @relation(fields: [locationId], references: [id])
+  locationId String
+  date       DateTime           @default(now())
+  notes      String?
+  details    StockAuditDetail[]
+}
+
+model StockAuditDetail {
+  id               String         @id @default(uuid())
+  stockAudit       StockAudit     @relation(fields: [stockAuditId], references: [id])
+  stockAuditId     String
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
+  productVariantId String
+  countedQty       Int
+  systemQty        Int // The quantity in StockLevel at the time of the audit
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  action    String // e.g., "product.create", "sale.complete"
+  tableName String
+  recordId  String
+  details   Json? // Optional: store before/after state
+  timestamp DateTime @default(now())
+}

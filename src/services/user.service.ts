@@ -7,7 +7,6 @@ import {
   LoginInput,
   SignUpInput,
 } from "@/types/user.types";
-;
 import {
   // ... other imports
   VerifyEmailInput,
@@ -81,7 +80,7 @@ export const login = async (credentials: LoginInput) => {
 
   const { accessToken, refreshToken } = generateTokens(user.id);
 
-  const pickedUser = pickData(["id", "email", "fullName"], user);
+  const pickedUser = pickData(["id","roleId", "email", "fullName"], user);
 
   return { user: pickedUser, accessToken, refreshToken };
 };
@@ -216,7 +215,10 @@ export const forgotPassword = async (data: ForgotPasswordInput) => {
       where: { id: user.id },
       data: { passwordResetToken: null, passwordResetExpires: null },
     });
-    throw new AppError("Failed to send password reset email. Please try again later.", 500);
+    throw new AppError(
+      "Failed to send password reset email. Please try again later.",
+      500
+    );
   }
 
   return {
@@ -262,7 +264,7 @@ export const resetPassword = async (data: ResetPasswordInput) => {
   return { message: "Password has been successfully reset." };
 };
 
-const sendVerificationEmail = async (user: { id: string, email: string }) => {
+const sendVerificationEmail = async (user: { id: string; email: string }) => {
   // 1. Generate a secure, random token
   const verificationToken = crypto.randomBytes(32).toString("hex");
 
@@ -299,11 +301,17 @@ export const signup = async (userData: SignUpInput) => {
     where: { email: userData.email },
   });
 
-  if (existingUser) throw new AppError("User with this email already exists", 409);
+  if (existingUser)
+    throw new AppError("User with this email already exists", 409);
 
   const hashedPassword = await bcrypt.hash(userData.password, SALT_ROUNDS);
   const newUser = await prisma.user.create({
-    data: { ...userData, password: hashedPassword },
+    data: {
+      ...userData,
+      password: hashedPassword,
+      name: userData.fullName, // or another appropriate value
+      role: { connect: { id: "USER" } },
+    },
   });
 
   // Send the verification email
@@ -315,7 +323,7 @@ export const signup = async (userData: SignUpInput) => {
   }
 
   const { accessToken, refreshToken } = generateTokens(newUser.id);
-  const pickedUser = pickData(["id", "email", "fullName"], newUser);
+  const pickedUser = pickData(["id", "roleId", "email", "fullName"], newUser);
 
   return { user: pickedUser, accessToken, refreshToken };
 };
