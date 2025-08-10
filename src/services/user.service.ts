@@ -123,7 +123,7 @@ export const changeFullName = async (
     where: { id: userId },
     data: { fullName: data.fullName },
     // Select only the fields that are safe to return
-    select: { id: true, email: true, fullName: true, createdAt: true },
+    select: { id: true, email: true, fullName: true },
   });
 
   return updatedUser;
@@ -160,8 +160,6 @@ export const getMe = async (userId: string) => {
       id: true,
       email: true,
       fullName: true,
-      createdAt: true,
-      updatedAt: true,
     },
   });
 
@@ -218,7 +216,7 @@ export const forgotPassword = async (data: ForgotPasswordInput) => {
       where: { id: user.id },
       data: { passwordResetToken: null, passwordResetExpires: null },
     });
-    throw error;
+    throw new AppError("Failed to send password reset email. Please try again later.", 500);
   }
 
   return {
