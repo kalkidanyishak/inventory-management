@@ -1,2 +1,4 @@
--[ ] fix user return (it returns everything)
+-[x] fix user return (it returns everything)
 -[ ] fix internal server error (better error handling)
+-[ ] fix role and permission management
+-[ ] test 11 times postman
